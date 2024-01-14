@@ -376,6 +376,20 @@ void initializeAudienceMessages() {
   }
 }
 
+char* skipFretting = -1;                                      // set to an undefined state, initialize properly later
+//char* skipFretting [2] = -1;                                // alternate version, not sure which is correct
+
+void initializeSkipFretting() {
+  // this function runs only once, when user enables skip fretting for the very first time after updating to this fork
+  // ideally it'd run immediately after user settings are restored after an update, but that involves forking the updater
+  byte length = strlen (Device.audienceMessages[12]);         // use message #13, least likely to be used by someone
+  length = min (length, 28);                                  // if user entered in 30 chars, overwrite last 2 chars
+  skipFretting = (char*)Device.audienceMessages[12][length];  // skipFretting points to 1st char after last audience message
+  Device.audienceMessages[12][length] = ASCII_FALSE;          // extend last message by 2 chars, store our 2 booleans there
+  Device.audienceMessages[12][length+1] = ASCII_FALSE;        // this line is same as saying "skipFretting[RIGHT] = ASCII_FALSE;"
+  Device.audienceMessages[12][length+2] = '\0';               // this line shouldn't be needed, do it anyway just in case 
+}
+
 void initializeNoteLights(GlobalSettings& g) {
     g.activeNotes = 0;
 
@@ -620,7 +634,6 @@ void initializePresetSettings() {
         p.split[s].pitchCorrectQuantize = true;
         p.split[s].pitchCorrectHold = true;
         p.split[s].pitchResetOnRelease = false;
-        p.split[s].skipFretting = false;
         p.split[s].minForY = 0;
         p.split[s].maxForY = 127;
         p.split[s].relativeY = false;
@@ -1588,8 +1601,11 @@ void handlePerSplitSettingHold() {
             Global.customRowOffset = 13;                      // kite guitar uses +13 row offset
             Split[LEFT].playedTouchMode = playedSame;         // turn on same-note lighting for familiarity
             Split[RIGHT].playedTouchMode = playedSame;        // turn on same-note lighting for familiarity
-            Split[LEFT].skipFretting = true;
-            Split[RIGHT].skipFretting = true;
+            if (skipFretting == -1) {
+              initializeSkipFretting ();
+            }
+            skipFretting[LEFT]  = ASCII_TRUE;
+            skipFretting[RIGHT] = ASCII_TRUE;
             setDisplayMode(displayNormal);
             updateDisplay();
             break;
@@ -1699,9 +1715,16 @@ void handlePerSplitSettingRelease() {
     case 8:
       switch (sensorRow) {
         case 0: //hidden kite setting, not held
+          if (skipFretting == -1) {
+            initializeSkipFretting ();
+          }
           if (ensureCellBeforeHoldWait(Split[Global.currentPerSplit].colorAccent,
-                                       Split[Global.currentPerSplit].skipFretting ? cellOn : cellOff)) {
-            Split[Global.currentPerSplit].skipFretting = !Split[Global.currentPerSplit].skipFretting;
+                                    skipFretting[Global.currentPerSplit] == ASCII_TRUE ? cellOn : cellOff)) {
+            if {skipFretting[Global.currentPerSplit] == ASCII_TRUE {
+              skipFretting[Global.currentPerSplit] = ASCII_FALSE;
+            } else {
+              skipFretting[Global.currentPerSplit] = ASCII_TRUE;
+            }
           }
           break;
       }
