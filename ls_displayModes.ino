@@ -643,10 +643,10 @@ void paintPerSplitDisplay(byte side) {
     setLed(8, 3, Split[side].colorMain, cellOn);
   }
 
-  if (Global.rowOffset == ROWOFFSET_OCTAVECUSTOM && Global.customRowOffset == 13 && Split[side].skipFretting == true) {
+  if (Global.rowOffset == ROWOFFSET_OCTAVECUSTOM && Global.customRowOffset == 13 && skipFretting[side] == ASCII_TRUE) {
     // kite settings are enabled, show in accent color
     setLed(8, 0, Split[side].colorAccent, cellOn);
-  } else if (Split[side].skipFretting == true) {
+  } else if (skipFretting[side] == ASCII_TRUE) {
     // skip fretting is on, show main color
     setLed(8, 0, Split[side].colorMain, cellOn);
   }
