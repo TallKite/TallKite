@@ -2372,7 +2372,12 @@ void handleOctaveTransposeNewTouch() {
   updateDisplay();
 }
 
+byte skipFrettingCCnum = 119;                                           // should probably be a NRPN
 void handleOctaveTransposeNewTouchSplit(byte side) {
+  signed char oldTransposeOctave = Split[side].transposeOctave;         // these 3 lines are for skipFretting
+  signed char oldTransposePitch = Split[side].transposePitch;
+  signed char oldTransposeLights = Split[side].transposeLights;
+
   if (sensorRow == OCTAVE_ROW) {
     switch (sensorCol) {
       case 3: Split[side].transposeOctave = -60; break;
@@ -2399,6 +2404,35 @@ void handleOctaveTransposeNewTouchSplit(byte side) {
       Split[side].transposeLights = sensorCol - 8;
     }
   }
+
+  /***************************** rough draft, not ready to uncomment yet
+  // send a CC reporting the transpose to LinnstrumentMicrotonal app, it will do the transposing
+  // pack 3 parameters into 1 byte, so we can use 1 CC message num not 3, reduce the risk of conflict
+  // (should probably be a NRPN not a CC)
+  // transpose +/- 5 octaves, 7 whole tones, 7 arrows/edosteps, don't allow transpose lights
+  // doesn't make sense when you're not in 12edo, need custom light patterns, those don't transpose (I think?)
+  // one method: let transposeOctave etc. change, as I did here, to avoid breaking the code
+  // elsewhere in the code prevent midi notes from actually being transposed
+  // better method: keep transposeOctave == 0, track the changes here somehow, to paint the screen correctly
+  // see paintOctaveTransposeDisplay() in ls_displayModes.ino
+  // the question is, will runtime variables like skipFrettingTransposeOctaves[side] persist? need to test this
+  // a 12edo Wicki-Hayden user wants to transpose normally, hence the rowOffset > 7, is there a better test?
+  if (skipFretting[side] == ASCII_TRUE && Global.rowOffset > 7) {
+    byte skipFrettingChannel = (side == LEFT ? 1 : 16);
+    if (Split[side].transposeOctave != oldTransposeOctave) {                                   // octave transpose
+      byte skipFrettingCCval = Split[side].transposeOctave + 8;                                // ranges from 3 to 13
+      midiSendControlChange (skipFrettingCCnum, skipFrettingCCval, skipFretChannel, true);
+    }
+    if (Split[side].transposePitch != oldTransposePitch) {                                     // whole tone transpose
+      byte skipFrettingCCval = Split[side].transposePitch + 24;                                // ranges from 17 to 31
+      midiSendControlChange (skipFrettingCCnum, skipFrettingCCval, skipFrettingChannel, true);
+    }
+    if (Split[side].transposeLights != oldTransposeLights) {                                   // arrow/edostep transpose
+      byte skipFrettingCCval = Split[side].transposeLights + 40;                               // ranges from 33 to 47
+      midiSendControlChange (skipFrettingCCnum, skipFrettingCCval, skipFrettingChannel, true);
+    }
+  }
+  ***************************/
 }
 
 void handleOctaveTransposeRelease() {
