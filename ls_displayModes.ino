@@ -1437,11 +1437,13 @@ void paintOctaveTransposeDisplaySkipFretting(byte side) {     // alternate versi
 
 
 void paintOctaveTransposeDisplay(byte side) {
+  /********************** disable this code until LinnstrumentMicrotonal is ready ********************    
   if (skipFretting[side] == ASCII_TRUE && Global.rowOffset > 7) {         // > 7 to exclude 12edo Wicki-Hayden users
     paintOctaveTransposeDisplaySkipFretting (side);
     return;
   }
-
+  **************************************************************************************************/
+    
   clearDisplay();
   blinkMiddleRootNote = true;
 
