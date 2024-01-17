@@ -2413,33 +2413,33 @@ void handleOctaveTransposeNewTouchSplit(byte side) {
   // see also paintOctaveTransposeDisplay function in ls_displayModes.ino
   // a 12edo Wicki-Hayden user wants to transpose normally, hence the rowOffset > 7 test
   if (skipFretting[side] == ASCII_TRUE && Global.rowOffset > 7) {
-    byte skipFrettingChannel = (side == LEFT ? 1 : 16); 
+    byte ch = (side == LEFT ? 1 : 16);                                       // midi channel
     
-    byte i = Split[side].transposeOctave - oldTransposeOctave;               // octave up/down, mimic footswitch midi
+    byte i = (Split[side].transposeOctave - oldTransposeOctave) / 12;        // octave up/down, mimic footswitch midi
     if (i != 0) {
-      skipFretting[side].transposeOctave += Split[side].transposeOctave / 12;
+      skipFretting[side].transposeOctave += Split[side].transposeOctave;
     }
     while (i > 0) {                                                
-      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 127, skipFrettingChannel, true);
-      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R],   0, skipFrettingChannel, true);
-      i -= 12;
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 127, ch, true);
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R],   0, ch, true);
+      i--;
     }
     while (i < 0) {
-      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_L], 127, skipFrettingChannel, true);
-      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_L],   0, skipFrettingChannel, true);
-      i += 12;
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_L], 127, ch, true);
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_L],   0, ch, true);
+      i++;
     }
 
-    if (Split[side].transposePitch != oldTransposePitch) {                                             // tone up/down
+    if (Split[side].transposePitch != oldTransposePitch) {                             // tone up/down
       skipFrettingside].transposeTone += Split[side].transposePitch;                           
-      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 96 + Split[side].transposePitch,   // range is 89-103
-                             skipFrettingChannel, true);
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 
+                             96 + Split[side].transposePitch, ch, true);               // range is 89-103                   
     }
 
-    if (Split[side].transposeLights != oldTransposeLights) {                                           // arrow up/down
+    if (Split[side].transposeLights != oldTransposeLights) {                           // arrow up/down
       skipFretting[side].transposeArrow += Split[side].transposeLights;                           
-      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 64 + Split[side].transposePitch,   // range is 57-71
-                             skipFrettingChannel, true);
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 
+                             64 + Split[side].transposePitch, ch, true);               // range is 57-71             
     }
 
     Split[side].transposeOctave = oldTransposeOctave;
