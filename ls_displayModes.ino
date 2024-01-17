@@ -1383,7 +1383,65 @@ void paintVolumeDisplayRow(byte side) {
   paintCCFaderDisplayRow(side, 5, Split[side].colorMain, 7, 1, NUMCOLS-2);
 }
 
+void paintOctaveTransposeDisplaySkipFretting(byte side) {     // alternate version of paintOctaveTransposeDisplay
+  clearDisplay();
+  blinkMiddleRootNote = true;
+
+  // Paint the octave shift value
+  if (!doublePerSplit || SkipFretting[LEFT].transposeOctave == SkipFretting[RIGHT].transposeOctave) {
+    paintOctave(Split[Global.currentPerSplit].colorMain, 8, OCTAVE_ROW, skipFretting[side].transposeOctave);
+  }
+  else if (doublePerSplit) {
+    if (abs(SkipFretting[LEFT].transposeOctave) > abs(SkipFretting[RIGHT].transposeOctave)) {
+      paintOctave(Split[LEFT].colorMain,  8, OCTAVE_ROW, SkipFretting[LEFT].transposeOctave);
+      paintOctave(Split[RIGHT].colorMain, 8, OCTAVE_ROW, SkipFretting[RIGHT].transposeOctave);
+    }
+    else {
+      paintOctave(Split[RIGHT].colorMain, 8, OCTAVE_ROW, SkipFretting[RIGHT].transposeOctave);
+      paintOctave(Split[LEFT].colorMain,  8, OCTAVE_ROW, SkipFretting[LEFT].transposeOctave);
+    }
+  }
+
+  // Paint the whole tone transpose values
+  if (!doublePerSplit || SkipFretting[LEFT].transposeTone == SkipFretting[RIGHT].transposeTone) {
+    paintTranspose(Split[Global.currentPerSplit].colorMain, SWITCH_1_ROW, SkipFretting[side].transposeTone);
+  }
+  else if (doublePerSplit) {
+    if (abs(SkipFretting[LEFT].transposeTone) > abs(SkipFretting[RIGHT].transposeTone)) {
+      paintTranspose(Split[LEFT].colorMain,  SWITCH_1_ROW, SkipFretting[LEFT].transposeTone);
+      paintTranspose(Split[RIGHT].colorMain, SWITCH_1_ROW, SkipFretting[RIGHT].transposeTone);
+    }
+    else {
+      paintTranspose(Split[RIGHT].colorMain, SWITCH_1_ROW, SkipFretting[RIGHT].transposeTone);
+      paintTranspose(Split[LEFT].colorMain,  SWITCH_1_ROW, SkipFretting[LEFT].transposeTone);
+    }
+  }
+
+  // Paint the arrow transpose values
+  if (!doublePerSplit || SkipFretting[LEFT].transposeArrow == SkipFretting[RIGHT].transposeArrow) {
+    paintTranspose(Split[Global.currentPerSplit].colorMain, SWITCH_2_ROW, SkipFretting[side].transposeArrow);
+  }
+  else if (doublePerSplit) {
+    if (abs(SkipFretting[LEFT].transposeArrow) > abs(SkipFretting[RIGHT].transposeArrow)) {
+      paintTranspose(Split[LEFT].colorMain,  SWITCH_2_ROW, SkipFretting[LEFT].transposeArrow);
+      paintTranspose(Split[RIGHT].colorMain, SWITCH_2_ROW, SkipFretting[RIGHT].transposeArrow);
+    }
+    else {
+      paintTranspose(Split[RIGHT].colorMain, SWITCH_2_ROW, SkipFretting[RIGHT].transposeArrow);
+      paintTranspose(Split[LEFT].colorMain,  SWITCH_2_ROW, SkipFretting[LEFT].transposeArrow);
+    }
+  }
+
+  paintShowSplitSelection(side);
+}
+
+
 void paintOctaveTransposeDisplay(byte side) {
+  if (skipFretting[side] == ASCII_TRUE && Global.rowOffset > 7) {         // > 7 to exclude 12edo Wicki-Hayden users
+    paintOctaveTransposeDisplaySkipFretting (side);
+    return;
+  }
+
   clearDisplay();
   blinkMiddleRootNote = true;
 
