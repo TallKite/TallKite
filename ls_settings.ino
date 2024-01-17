@@ -2372,7 +2372,6 @@ void handleOctaveTransposeNewTouch() {
   updateDisplay();
 }
 
-byte skipFrettingCCnum = 119;                                           // should probably be a NRPN
 void handleOctaveTransposeNewTouchSplit(byte side) {
   signed char oldTransposeOctave = Split[side].transposeOctave;         // these 3 lines are for skipFretting
   signed char oldTransposePitch = Split[side].transposePitch;
@@ -2405,34 +2404,48 @@ void handleOctaveTransposeNewTouchSplit(byte side) {
     }
   }
 
-  /***************************** rough draft, not ready to uncomment yet
-  // send a CC reporting the transpose to LinnstrumentMicrotonal app, it will do the transposing
-  // pack 3 parameters into 1 byte, so we can use 1 CC message num not 3, reduce the risk of conflict
-  // (should probably be a NRPN not a CC)
-  // transpose +/- 5 octaves, 7 whole tones, 7 arrows/edosteps, don't allow transpose lights
-  // doesn't make sense when you're not in 12edo, need custom light patterns, those don't transpose (I think?)
-  // one method: let transposeOctave etc. change, as I did here, to avoid breaking the code
-  // elsewhere in the code prevent midi notes from actually being transposed
-  // better method: keep transposeOctave == 0, track the changes here somehow, to paint the screen correctly
-  // see paintOctaveTransposeDisplay() in ls_displayModes.ino
-  // the question is, will runtime variables like skipFrettingTransposeOctaves[side] persist? need to test this
-  // a 12edo Wicki-Hayden user wants to transpose normally, hence the rowOffset > 7, is there a better test?
+  // send CCs reporting the transposes to LinnstrumentMicrotonal app, it will do the transposing
+  // use the same two CCs that the foot switches are assigned to via long-pressing the CC65 option
+  // right footswitch is up, left is down. For octave transposing only, short-press latches, long-press doesn't
+  // repurpose semitones to be whole tones and lights to be arrows/edosteps, so that ±7 of each covers 41edo
+  // midi for octave transposing mimics footswitch midi: it reports each increment/decrement, plus a 0 CC for pedal release
+  // but midi for tone/arrow transposing directly reports the current amount of transpose, no zero CCs
+  // see also paintOctaveTransposeDisplay function in ls_displayModes.ino
+  // a 12edo Wicki-Hayden user wants to transpose normally, hence the rowOffset > 7 test
   if (skipFretting[side] == ASCII_TRUE && Global.rowOffset > 7) {
-    byte skipFrettingChannel = (side == LEFT ? 1 : 16);
-    if (Split[side].transposeOctave != oldTransposeOctave) {                                   // octave transpose
-      byte skipFrettingCCval = Split[side].transposeOctave + 8;                                // ranges from 3 to 13
-      midiSendControlChange (skipFrettingCCnum, skipFrettingCCval, skipFretChannel, true);
+    byte skipFrettingChannel = (side == LEFT ? 1 : 16); 
+    
+    byte i = Split[side].transposeOctave - oldTransposeOctave;               // octave up/down, mimic footswitch midi
+    if (i != 0) {
+      skipFretting[side].transposeOctave += Split[side].transposeOctave / 12;
     }
-    if (Split[side].transposePitch != oldTransposePitch) {                                     // whole tone transpose
-      byte skipFrettingCCval = Split[side].transposePitch + 24;                                // ranges from 17 to 31
-      midiSendControlChange (skipFrettingCCnum, skipFrettingCCval, skipFrettingChannel, true);
+    while (i > 0) {                                                
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 127, skipFrettingChannel, true);
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R],   0, skipFrettingChannel, true);
+      i -= 12;
     }
-    if (Split[side].transposeLights != oldTransposeLights) {                                   // arrow/edostep transpose
-      byte skipFrettingCCval = Split[side].transposeLights + 40;                               // ranges from 33 to 47
-      midiSendControlChange (skipFrettingCCnum, skipFrettingCCval, skipFrettingChannel, true);
+    while (i < 0) {
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_L], 127, skipFrettingChannel, true);
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_L],   0, skipFrettingChannel, true);
+      i += 12;
     }
+
+    if (Split[side].transposePitch != oldTransposePitch) {                                             // tone up/down
+      skipFrettingside].transposeTone += Split[side].transposePitch;                           
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 96 + Split[side].transposePitch,   // range is 89-103
+                             skipFrettingChannel, true);
+    }
+
+    if (Split[side].transposeLights != oldTransposeLights) {                                           // arrow up/down
+      skipFretting[side].transposeArrow += Split[side].transposeLights;                           
+      midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 64 + Split[side].transposePitch,   // range is 57-71
+                             skipFrettingChannel, true);
+    }
+
+    Split[side].transposeOctave = oldTransposeOctave;
+    Split[side].transposePitch  = oldTransposePitch;
+    Split[side].transposeLights = oldTransposeLights;
   }
-  ***************************/
 }
 
 void handleOctaveTransposeRelease() {
