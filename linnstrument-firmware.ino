@@ -434,12 +434,12 @@ struct NoteTouchMapping {
 };
 NoteTouchMapping noteTouchMapping[NUMSPLITS];
 
-struct SkipFretting {
+struct SkipFrettingData {
   signed char transposeOctave;
   signed char transposeTone;
   signed char transposeArrow;
 };
-SkipFretting skipFretting[NUMSPLITS];
+SkipFrettingData skipFrettingData[NUMSPLITS];
 
 /**************************************** DISPLAY STATE ******************************************/
 
