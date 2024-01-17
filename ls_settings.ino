@@ -376,18 +376,16 @@ void initializeAudienceMessages() {
   }
 }
 
-char* skipFretting = -1;                                      // set to an undefined state, initialize properly later
-//char* skipFretting [2] = -1;                                // alternate version, not sure which is correct
-
 void initializeSkipFretting() {
   // this function runs only once, when user enables skip fretting for the very first time after updating to this fork
   // ideally it'd run immediately after user settings are restored after an update, but that involves forking the updater
-  byte length = strlen (Device.audienceMessages[12]);         // use message #13, least likely to be used by someone
-  length = min (length, 28);                                  // if user entered in 30 chars, overwrite last 2 chars
-  skipFretting = (char*)Device.audienceMessages[12][length];  // skipFretting points to 1st char after last audience message
-  Device.audienceMessages[12][length] = ASCII_FALSE;          // extend last message by 2 chars, store our 2 booleans there
-  Device.audienceMessages[12][length+1] = ASCII_FALSE;        // this line is same as saying "skipFretting[RIGHT] = ASCII_FALSE;"
-  Device.audienceMessages[12][length+2] = '\0';               // this line shouldn't be needed, do it anyway just in case 
+  byte m = skipFrettingMsg;
+  byte length = strlen (Device.audienceMessages[m]);         
+  length = min (length, 28);                                 // if user entered in 30 chars, overwrite the last 2 chars
+  skipFretting = (char*)Device.audienceMessages[m][length];  // skipFretting points to 1st char after audience message
+  Device.audienceMessages[m][length] = ASCII_FALSE;          // extend last message by 2 chars, store our 2 booleans there
+  Device.audienceMessages[m][length+1] = ASCII_FALSE;        // this line is same as saying "skipFretting[RIGHT] = ASCII_FALSE;"
+  Device.audienceMessages[m][length+2] = '\0';               // this line shouldn't be needed, but do it anyway just in case 
 }
 
 void initializeNoteLights(GlobalSettings& g) {
@@ -1601,7 +1599,11 @@ void handlePerSplitSettingHold() {
             Global.customRowOffset = 13;                      // kite guitar uses +13 row offset
             Split[LEFT].playedTouchMode = playedSame;         // turn on same-note lighting for familiarity
             Split[RIGHT].playedTouchMode = playedSame;        // turn on same-note lighting for familiarity
-            if (skipFretting == -1) {
+            byte length = strlen (Device.audienceMessages[skipFrettingMsg]);
+            if ((Device.audienceMessages[skipFrettingMsg][length-1] != ASCII_TRUE
+              && Device.audienceMessages[skipFrettingMsg][length-1] != ASCII_FALSE)
+             || (Device.audienceMessages[skipFrettingMsg][length-2] != ASCII_TRUE
+              && Device.audienceMessages[skipFrettingMsg][length-2] != ASCII_FALSE)) {
               initializeSkipFretting ();
             }
             skipFretting[LEFT]  = ASCII_TRUE;
@@ -1715,8 +1717,12 @@ void handlePerSplitSettingRelease() {
     case 8:
       switch (sensorRow) {
         case 0: //hidden kite setting, not held
-          if (skipFretting == -1) {
-            initializeSkipFretting ();
+          byte length = strlen (Device.audienceMessages[skipFrettingMsg]);
+          if ((Device.audienceMessages[skipFrettingMsg][length-1] != ASCII_TRUE
+            && Device.audienceMessages[skipFrettingMsg][length-1] != ASCII_FALSE)
+           || (Device.audienceMessages[skipFrettingMsg][length-2] != ASCII_TRUE
+            && Device.audienceMessages[skipFrettingMsg][length-2] != ASCII_FALSE)) {
+             initializeSkipFretting ();
           }
           if (ensureCellBeforeHoldWait(Split[Global.currentPerSplit].colorAccent,
                                     skipFretting[Global.currentPerSplit] == ASCII_TRUE ? cellOn : cellOff)) {
@@ -2417,7 +2423,7 @@ void handleOctaveTransposeNewTouchSplit(byte side) {
     
     byte i = (Split[side].transposeOctave - oldTransposeOctave) / 12;        // octave up/down, mimic footswitch midi
     if (i != 0) {
-      skipFretting[side].transposeOctave += Split[side].transposeOctave;
+      skipFrettingData[side].transposeOctave += Split[side].transposeOctave;
     }
     while (i > 0) {                                                
       midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 127, ch, true);
@@ -2431,13 +2437,13 @@ void handleOctaveTransposeNewTouchSplit(byte side) {
     }
 
     if (Split[side].transposePitch != oldTransposePitch) {                             // tone up/down
-      skipFrettingside].transposeTone += Split[side].transposePitch;                           
+      skipFrettingData[side].transposeTone += Split[side].transposePitch;                           
       midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 
                              96 + Split[side].transposePitch, ch, true);               // range is 89-103                   
     }
 
     if (Split[side].transposeLights != oldTransposeLights) {                           // arrow up/down
-      skipFretting[side].transposeArrow += Split[side].transposeLights;                           
+      skipFrettingData[side].transposeArrow += Split[side].transposeLights;                           
       midiSendControlChange (Global.ccForSwitchCC65[SWITCH_FOOT_R], 
                              64 + Split[side].transposePitch, ch, true);               // range is 57-71             
     }
