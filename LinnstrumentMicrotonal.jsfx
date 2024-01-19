@@ -1,0 +1,212 @@
+desc: LinnstrumentMicrotonal converts Linnstrument output to any edo
+//
+// set up two tracks, one with your left-split softsynths and one with your right-split softsynths
+// on each track, bypass all synths except the one you currently want to play
+// both tracks should have this plugin first, it blocks the midi from the other split
+// if the Linnstrument split is off, set one instance's split to both and the other to neither 
+//
+// anchor: the input midi note sounds like the standard output midi note, detuned by the output cents
+// The Kite guitar standard: D is in tune with 12edo, and the center dot of the low kite is middle-C
+// so set the sliders to #75 and 62=D3 and 0¢
+//
+// pitch bend ranges: generally best to set both sliders to 24, set your synth to match
+//
+// octave/tone/arrow transpose is added on to the anchoring 
+// you can set it here manually, or you can set the octave via Linnstrument foot switches
+// on the Linnstrument, don't set the 2 foot switches to octve up/down
+// instead, set them to send 2 different CC messages (long press the CC #65 pad to do this) 
+// then set the octave up/down CC sliders here to match (up=65 and down=63 are good choices)
+// the Linnstrument's "both splits" option doesn't matter, only the current split is affected
+// on the Linnstrument, you can also transpose 8ve/tone/arrow on the Octave/Transpose screen
+// once you set the two CC numbers for the pedals, you can use the pedals for something else
+//
+// click the "+" on this plugin to save the sliders as a preset
+//
+// don't play notes while moving the sliders, causes hanging notes
+
+// to do: debug one chan and chanPerRow modes
+// to do: fix hanging notes after transposing, need to transpose certain note-offs too
+// to do: investigate overlapping channels -- do I need a slider for lowest right channel?
+
+// MIDI-only effect
+in_pin:none
+out_pin:none
+
+slider1: 2 <0, 3, 1{ left, right, both, neither}>split
+slider2: 8 <1, 16, 1>highest midi channel for left split
+
+slider4: 12 <5, 41, 1>notes per octave
+slider5: 1 <0, 1, 1{ 1 (normal), 2 (Kite Guitar or Wicki-Hayden)}>column offset
+
+slider7: 60 <0, 127, 1>input midi note # to anchor from
+slider8: 60 <0, 127, 1 {127: G 8, 126: F# 8, 125: F 8, 124: E 8, 123: Eb 8, 122: D 8, 121: C# 8, 120: C 8, 119: B 7, 118: Bb 7, 117: A 7, 116: Ab 7, 115: G 7, 114: F# 7, 113: F 7, 112: E 7, 111: Eb 7, 110: D 7, 109: C# 7, 108: C 7, 107: B 6, 106: Bb 6, 105: A 6, 104: Ab 6, 103: G 6, 102: F# 6, 101: F 6, 100: E 6, 99: Eb 6, 98: D 6, 97: C# 6, 96: C 6, 95: B 5, 94: Bb 5, 93: A 5, 92: Ab 5, 91: G 5, 90: F# 5, 89: F 5, 88: E 5, 87: Eb 5, 86: D 5, 85: C# 5, 84: C 5, 83: B 4, 82: Bb 4, 81: A 4, 80: Ab 4, 79: G 4, 78: F# 4, 77: F 4, 76: E 4, 75: Eb 4, 74: D 4, 73: C# 4, 72: C 4, 71: B 3, 70: Bb 3, 69: A 3 (A-440), 68: Ab 3, 67: G 3, 66: F# 3, 65: F 3, 64: E 3, 63: Eb 3, 62: D 3, 61: C# 3, 60: C 3 (middle C), 59: B 2, 58: Bb 2, 57: A 2, 56: Ab 2, 55: G 2, 54: F# 2, 53: F 2, 52: E 2, 51: Eb 2, 50: D 2, 49: C# 2, 48: C 2, 47: B 1, 46: Bb 1, 45: A 1, 44: Ab 1, 43: G 1, 42: F# 1, 41: F 1, 40: E 1, 39: Eb 1, 38: D 1, 37: C# 1, 36: C 1, 35: B 0, 34: Bb 0, 33: A 0, 32: Ab 0, 31: G 0, 30: F# 0, 29: F 0, 28: E 0, 27: Eb 0, 26: D 0, 25: C# 0, 24: C 0, 23: B -1, 22: Bb -1, 21: A -1, 20: Ab -1, 19: G -1, 18: F# -1, 17: F -1, 16: E -1, 15: Eb -1, 14: D -1, 13: C# -1, 12: C -1, 11: B -2, 10: Bb -2, 9: A -2, 8: Ab -2, 7: G -2, 6: F# -2, 5: F -2, 4: E -2, 3: Eb -2, 2: D -2, 1: C# -2, 0: C -2}>output midi note to anchor to
+slider9: 0 <-50, 50, 1>output cents offset to anchor to
+
+slider11: 24 <1, 48, 1>Linnstrument pitch bend range
+slider12: 24 <1, 48, 1>synth pitch bend range
+
+slider14: 0 <-3, 3, 1>octave transpose
+slider15: 0 <-7, 7, 1>whole tone transpose
+slider16: 0 <-7, 7, 1>arrow/edostep transpose
+
+slider18: 65 <-1, 119, 1>transpose up CC message # (-1 = none)
+slider19: 63 <-1, 119, 1>transpose down CC message # (-1 = none)
+
+@init
+
+slider4 = 41;           // default to 41edo
+slider7 = 75;           // default to D is in tune with 12edo, center dot of low kite is middle-C
+slider8 = 127 - 62;     // for right split, slider7 should be 51
+
+samplesCount = 0;
+shortTime = 0.25 * srate;  // 0.25 seconds measured in samples, for short (latching) pedal presses
+
+NOTE_ON = 9;               // midi commands
+NOTE_OFF = 8;
+CC_MSG = 11;
+PITCH_BEND = 14;
+SYSTEM = 15;
+
+function round (x) (
+  floor (x + 0.5);
+);
+
+// NewNote is the midi note that each input note is mapped to
+NewNote = 0;                                 // array starting address
+NewNoteLength = 128;                         // array length, one for each midi note
+
+// NewCents is the deviation from 12edo for each input note
+NewCents = NewNote + NewNoteLength;          // array starting address
+NewCentsLength = 128;                        // array length, one for each midi note
+
+// TuningBend tracks how many cents each channel must be retuned for the edo
+TuningBend = NewCents + NewCentsLength;      // array starting address
+TuningBendLength = 16;                       // array length, one for each midi channel
+
+// Slide bends come from sliding along the Linnstrument
+SlideBend = TuningBend + TuningBendLength;   // array starting address
+SlideBendLength = 16;                        // array length, one for each midi channel
+
+// needs work!!!
+// Transposed is set if the octave was changed while a note was still playing on that channel
+Transposed = SlideBend + SlideBendLength;
+TransposedLength = 16;
+
+function calcMaps () local (i, note) (                      // map e.g. note #68 to note #60 - 5�
+  i = 0;
+  loop (128,
+    note = (i - anchorNote) * 12 / edo + anchorPitch;       // convert to fractional 12edo note
+    note = min (max (note, 0), 127);                        // stay in range
+    NewNote [i] = round (note);
+    NewCents [i] = 100 * (note - NewNote [i]);
+    i += 1;
+  );
+);
+
+@slider
+  slider1 == 0 ? (loChan = 0; hiChan = slider2 - 1)
+: slider1 == 1 ? (loChan = slider2; hiChan = 15)
+: slider1 == 2 ? (loChan = 0; hiChan = 15)
+: slider1 == 3 ? (loChan = 15; hiChan = 0);
+edo = slider4;
+colOffset = slider5 + 1;
+anchorNote = slider7;
+anchorPitch = 127 - slider8 + slider9 / 100;            // convert cents to semitones
+rangeLinn = 100 * slider11;                             // convert semitones to cents
+rangeSynth = 100 * slider12;
+transposeOctave = slider14;
+tone = 2 * round (edo * log (3/2) / log (2)) - edo;     // whole tone = 9/8, calc via 5ths,
+transposeTone = slider15;                               // so that C to D always = 1 tone
+slider16 = min (max (slider16, -tone), tone);
+transposeArrow = slider16;
+transposeUpCC = slider18;                               // -1 == none, CCnum will never be negative
+slider19 >= 0 && slider19 == slider18 ? 
+  slider19 += (slider19 == 119 ? -1 : 1);               // don't let them enter identical CCs
+transposeDownCC = slider19;
+calcMaps ();
+
+@block
+
+function octaveTranspose (direction, press) (       // pedal press as opposed to pedal release
+  transposeOctave += direction; 
+  transposeOctave = min (max (transposeOctave, -3), 3);
+  slider14 = transposeOctave;
+  timePress =  press ? currTime : -1;               // long presses don't latch, short ones do
+);
+
+function processMidi () 
+local (blockOffset, status, databytes, msg, chan, note, velocity, 
+       LSB, MSB, CCnum, CCval, octaves, steps, bend) (
+
+  while (midirecv (blockOffset, status, databytes)) (
+  
+    currTime = samplesCount + blockOffset;
+    msg = (status & 240) / 16; 
+    chan = status & 15;  
+    
+    (chan >= loChan && chan <= hiChan) || msg == SYSTEM ? (        // block all midi that's from the wrong split
+  
+      note = CCnum = LSB = databytes & 127;                        // LSB = least significant byte
+      velocity = CCval = MSB = (databytes / 256) | 0;              // MSB = most significant byte
+      
+      // see handleOctaveTransposeNewTouchSplit in ls_settings.ino
+      msg == CC_MSG && CCnum == transposeUpCC ? (
+        CCval == 127 ? octaveTranspose (1, 1)  
+        : CCval > 80 ? transposeOctave = slider14 = CCval - 96         // range is 93-99 for ±3
+        : CCval > 48 ? transposeTone   = slider15 = CCval - 64         // range is 57-71 for ±7
+        : CCval > 16 ? transposeArrow  = slider16 = CCval - 32         // range is 25-39
+        : timePress < currTime - shortTime ? octaveTranspose (-1, 0);  // long press? undo on release
+      );
+      
+      msg == CC_MSG && CCnum == transposeDownCC ? (
+        CCval == 127 ? octaveTranspose (-1, 1)
+        : timePress < currTime - shortTime ? octaveTranspose (1, 0);   // long press? undo on release
+      );
+
+      msg == NOTE_ON || msg == NOTE_OFF ? (
+        note += transposeArrow + tone * transposeTone + edo * transposeOctave;
+        note > 127 ? octaves = ceil ((note - 127) / edo)           // add/subtract octaves to stay in range
+        : note < 0 ? octaves = floor (note / edo)
+        : octaves = 0;
+        note -= edo * octaves;
+        databytes = NewNote [note] + 12 * octaves;                 // subtract/add the octaves back in
+        databytes = min (max (databytes, 0), 127);                 // stay in range
+        databytes += 256 * velocity;
+        msg == NOTE_ON ? (
+          TuningBend [chan] = NewCents [note];
+          bend = TuningBend [chan] + SlideBend [chan];             // bend in cents
+          bend = 8192 + (8192 * bend) / rangeSynth;                // bend as a 14-bit integer
+          bend = min (max (bend, 0), 16383);                       // stay in range
+          bend = (bend & 127) + 256 * ((bend / 128) | 0);          // convert to 2 7-bit integers
+          blockOffset == samplesblock - 1 ? blockOffset -= 1;      // spread out the midi
+          midisend (blockOffset, 224 + chan, bend | 0);            // 224 = midi pitch bend msg
+          blockOffset += 1;                                        // 1 sample delay
+        ) : (
+          TuningBend [chan] = SlideBend [chan] = 0;                // noteOff
+          Transposed [chan] ? (
+            databytes += 12 * transposeOctave;
+            Transposed [chan] = 0;
+          );
+        );
+      );
+
+      msg == PITCH_BEND ? (
+        bend = LSB + 128 * MSB - 8192;                             // convert to 14-bit integer
+        bend *= rangeLinn / 8192;                                  // convert to cents
+        bend *= 12 / edo;
+        bend *= colOffset;
+        slideBend [chan] = bend;
+        bend += TuningBend [chan];                                 // add on the tuning bend
+        bend = 8192 + (8192 * bend) / rangeSynth;                  // convert to midi
+        bend = min (max (bend, 0), 16383);                         // stay in range
+        databytes = (bend & 127) + 256 * ((bend / 128) | 0);       // convert to 2 7-bit integers
+      );      
+
+      midisend (blockOffset, status, databytes);
+
+    );  // end-if
+  );    // end-while
+);
+
+processMidi ();
+samplesCount += samplesBlock;
