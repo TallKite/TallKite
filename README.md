@@ -1,7 +1,7 @@
 - 👋 Hi, I’m @TallKite
 - 👀 I’m interested in microtonal music
 - my websites: TallKite.com, KiteGuitar.com
-- 📫 How to reach me: Kite@FoolsInParadise.com
+- 📫 How to reach me: my email is on the websites
 
 <!---
 TallKite/TallKite is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
