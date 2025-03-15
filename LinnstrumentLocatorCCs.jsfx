@@ -1,9 +1,6 @@
 desc: Linnstrument filter notes by location (top row = row #1)
-// version 1.0
-// by TallKite software 
 // this code assumes the linnstrument is sending out a locator CC with each note-on
 // It also assumes one-channel mode is not used
-// turn on pitch/X, or else a tap in the groove between two pads will send two note-ons
 
 slider1:1<1,16> Lowest midi channel to listen to
 slider2:8<1,16> Highest midi channel to listen to
@@ -15,19 +12,15 @@ slider7:1<1,25,1> Leftmost column of rectangle
 slider8:25<1,25,1> Rightmost column of rectangle
 slider9:1<1,8,1> Topmost row of rectangle
 slider10:8<1,8,1> Bottommost row of rectangle
-
-slider11:2<0,2,1{ inside the rectangle, outside the rectangle, both inside and outside, neither inside nor outside}> Pass through locator CCs?
-slider11:2<0,2,1{ inside the rectangle, outside the rectangle, both inside and outside, neither inside nor outside}> Pass through pitch bends?
 slider11:2<0,2,1{ inside the rectangle, outside the rectangle, both inside and outside, neither inside nor outside}> Pass through all other midi?
 
-slider13:0<0,6,1{ pass through the note unaltered (no transposition or transformation), transpose the note to a fixed note set below (good for 3x3 drum pads), transform the note into a CC with CC number = the original note number and CC value = the original note velocity, transform the note into a CC with CC number = the original note number and CC value = a fixed value set below, transform the note into a CC with CC number = a fixed number set below and CC value = the original note number, transform the note into a CC with CC number = a fixed number set below and CC value = the original note velocity, transform the note into a CC with CC number = a fixed number set below and CC value = a fixed value set below}> Transposing / transforming options
-slider14:60<0, 127, 1> Fixed note to transpose to
-slider15:0<-2, 127, 1> Fixed CC message to transform into
-slider16:64<-2, 127, 1}> Fixed CC value
+slider13:0<0,6,1{ pass through the note unaltered (no transposition or transformation), transpose the note to a specific note set below (good for drum pads), transform the note into a CC with CC number = the original note number and CC value = the original note velocity, transform the note into a CC with CC number = the original note number and CC value = a specific value set below, transform the note into a CC with CC number = a specific number set below and CC value = the original note number, transform the note into a CC with CC number = a specific number set below and CC value = the original note velocity, transform the note into a CC with CC number = a specific number set below and CC value = a specific value set below}> Transposing / transforming options
+slider14:60<0, 127, 1> Specific note to transpose to
+slider15:0<-2, 127, 1> Specific CC message to transform into
+slider16:64<-2, 127, 1}> Specific CC value
 slider17:0<0, 2, 1{ no CC message, CC value is always 0, handle CC value the same way as a note-on}> Options for a transformed note-off
 
 slider20:1<0,1,1{ Yes, No}> Pass through original locator CC?
-slider21:1<0,1,1{ Yes, No}> Pass through all pitch bends?
  
  
 @init
@@ -36,14 +29,14 @@ noteOff = 8*16;
 CCmsg = 11*16;
 bend = 14*16;
 
+
 @slider
 wantOutside = (slider11 == 1);
 wantAll = slider11 == 2;
-fixedNote = slider14;
-fixedCCnum = slider15;
-fixedCCval = slider16;
+specificNote = slider14;
+specificCCnum = slider15;
+specificCCval = slider16;
 passLocatorCC = slider20 == 0;
-passBends = slider21 == 0;
 
 @block
 
@@ -70,13 +63,13 @@ while (midirecv(mpos, msg1, msg2, msg3)) (
       
       isInside ? (                                       // only transform/transpose if inside
         slider13 == 1 ? (
-          msg2A = fixedNote;
+          msg2A = specificNote;
         ) : slider13 >= 2 ? (
           msg1A = CCmsg + channelA;
-          slider13 == 3 ? msg3A = fixedCCval;
-          slider13 == 4 ? (msg3A = msg2A; msg2A = fixedCCnum);
-          slider13 == 5 ? msg2A = fixedCCnum;
-          slider13 == 6 ? (msg2A = fixedCCnum; msg3A = fixedCCval);
+          slider13 == 3 ? msg3A = specificCCval;
+          slider13 == 4 ? (msg3A = msg2A; msg2A = specificCCnum);
+          slider13 == 5 ? msg2A = specificCCnum;
+          slider13 == 6 ? (msg2A = specificCCnum; msg3A = specificCCval);
           statusA == CCmsg ? (
             slider17 == 0 ? passNote = false;
             slider17 == 1 ? msg3A = 0;
@@ -84,16 +77,18 @@ while (midirecv(mpos, msg1, msg2, msg3)) (
         );
       );
       
-      passNote ? midisend(mpos, msg1A, msg2A, msg3A);    // use mpos not mposA for a fixed delay, avoids midi jitter
+      passNote ? (
+        // old way, uses mposA in the midisend
+        //mposA > mpos ? mposA = 0;                      // in case the CC arrives in the following sample block
+        midisend(mpos, msg1A, msg2A, msg3A);             // use mpos not mposA for a specific delay, avoids midi jitter
+      );
       
       passLocatorCC ? midisend(mpos, msg1, msg2, msg3);
       
     ) : 
     
-    !(status == bend && !passBends) ? (
-      midisend(mpos, msg1, msg2, msg3);                  // if not note-on or note-off or locator CC, pass it thru 
-    );
+    midisend(mpos, msg1, msg2, msg3);                  // if not note-on or note-off or locator CC, pass it thru 
+
     
   );  // end of if channel in our range, don't pass through midi outside the range
 );    // end of while midirecv
-
