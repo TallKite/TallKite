@@ -1,6 +1,12 @@
 desc: Linnstrument filter notes by location (top row = row #1)
-// this code assumes the linnstrument is sending out a locator CC with each note-on
+// this code assumes the linnstrument is sending out a locator CC before each note-on
 // It also assumes one-channel mode is not used
+// turn on pitch/X, or else a tap in the groove between two pads will send two note-ons
+
+// vertical mod wheel: set the split to row offset 18, width 1 column
+// transpose the split down until the bottom note is note 0 and top note is 126
+// transform notes to CC number 1, CC value = the original note number
+// send the transformed CCs to the main channel (usually 1 or 16)
 
 slider1:1<1,16> Lowest midi channel to listen to
 slider2:8<1,16> Highest midi channel to listen to
@@ -12,16 +18,19 @@ slider7:1<1,25,1> Leftmost column of rectangle
 slider8:25<1,25,1> Rightmost column of rectangle
 slider9:1<1,8,1> Topmost row of rectangle
 slider10:8<1,8,1> Bottommost row of rectangle
-slider11:2<0,2,1{ inside the rectangle, outside the rectangle, both inside and outside, neither inside nor outside}> Pass through all other midi?
 
-slider13:0<0,6,1{ pass through the note unaltered (no transposition or transformation), transpose the note to a specific note set below (good for drum pads), transform the note into a CC with CC number = the original note number and CC value = the original note velocity, transform the note into a CC with CC number = the original note number and CC value = a specific value set below, transform the note into a CC with CC number = a specific number set below and CC value = the original note number, transform the note into a CC with CC number = a specific number set below and CC value = the original note velocity, transform the note into a CC with CC number = a specific number set below and CC value = a specific value set below}> Transposing / transforming options
-slider14:60<0, 127, 1> Specific note to transpose to
-slider15:0<-2, 127, 1> Specific CC message to transform into
-slider16:64<-2, 127, 1}> Specific CC value
-slider17:0<0, 2, 1{ no CC message, CC value is always 0, handle CC value the same way as a note-on}> Options for a transformed note-off
+slider12:0<0,2,1{ pass thru all midi, pass thru no midi, pass thru only note-ons and note-offs}> midi inside the rectangle
+slider13:0<0,1,1{ pass thru all midi, pass thru no midi}> midi outside the rectangle
 
-slider20:1<0,1,1{ Yes, No}> Pass through original locator CC?
- 
+slider15:0<0,6,1{ pass through the note unaltered (no transposition or transformation), transpose the note to a specific note set below (good for drum pads), transform the note into a CC with CC number = the original note number and CC value = the original note velocity, transform the note into a CC with CC number = the original note number and CC value = a specific value set below, transform the note into a CC with CC number = a specific number set below and CC value = the original note number, transform the note into a CC with CC number = a specific number set below and CC value = the original note velocity, transform the note into a CC with CC number = a specific number set below and CC value = a specific value set below}> Transposing / transforming options
+slider16:60<0, 127, 1> Specific note to transpose to
+slider17:0<-2, 127, 1> Specific CC message to transform into
+slider18:64<-2, 127, 1}> Specific CC value
+
+slider20:0<0, 2, 1{ no CC message, CC value is always 0, handle CC value the same way as a note-on}> Options for a transformed note-off
+slider21:0<1, 16, 1> Channel for transformed CCs? (0 = original)
+slider22:1<0,3,1{ inside the rectangle, outside the rectangle, both inside and outside, neither inside nor outside}> Pass through locator CCs?
+
  
 @init
 noteOn = 9*16;
@@ -29,14 +38,16 @@ noteOff = 8*16;
 CCmsg = 11*16;
 bend = 14*16;
 
+// isInside[ch] is true if the notes and XYZ data from channel ch are inside the rectangular region
+isInside = 0;           // starting address of the array
+isInsideLength = 16;    // length of the array
+memset (isInside, 0, isInsideLength);
 
 @slider
-wantOutside = (slider11 == 1);
-wantAll = slider11 == 2;
-specificNote = slider14;
-specificCCnum = slider15;
-specificCCval = slider16;
-passLocatorCC = slider20 == 0;
+specificNote = slider16;
+specificCCnum = slider17;
+specificCCval = slider18;
+
 
 @block
 
@@ -46,49 +57,42 @@ while (midirecv(mpos, msg1, msg2, msg3)) (
   channel = msg1 & $x0F;
   channel >= slider1 - 1 && channel <= slider2 - 1 ? (
   
-    status == noteOn || status == noteOff ? (
-      msg1A = msg1; msg2A= msg2; msg3A = msg3;           // store the note-on or note-off for later
-      mposA = mpos; statusA = status; channelA = channel;
-    ) : 
-    
-    status == CCmsg && channel == channelA && (msg2 == slider4 || msg2 == slider5) ? (
-    
+    status == CCmsg && (msg2 == slider4 || msg2 == slider5) ? (
       row = (msg3 & 7) + 1; 
       col = msg3 >> 3 + 1;
       msg2 == slider5 ? col += 16;
-      isInside = col >= slider7 && col <= slider8 && row >= slider9 && row <= slider10;
-      
-      passNote = (isInside + wantOutside == 1);          // add booleans together for a klugey xor
-      passNote |= wantAll;
-      
-      isInside ? (                                       // only transform/transpose if inside
-        slider13 == 1 ? (
-          msg2A = specificNote;
-        ) : slider13 >= 2 ? (
-          msg1A = CCmsg + channelA;
-          slider13 == 3 ? msg3A = specificCCval;
-          slider13 == 4 ? (msg3A = msg2A; msg2A = specificCCnum);
-          slider13 == 5 ? msg2A = specificCCnum;
-          slider13 == 6 ? (msg2A = specificCCnum; msg3A = specificCCval);
-          statusA == CCmsg ? (
-            slider17 == 0 ? passNote = false;
-            slider17 == 1 ? msg3A = 0;
+      isInside[channel] = col >= slider7 && col <= slider8 && row >= slider9 && row <= slider10;
+      isInside[channel] ? (
+          passThru = slider22 == 0 || slider22 == 2;
+      ) : passThru = slider22 == 1 || slider22 == 2;
+      passThru ? midisend(mpos, msg1, msg2, msg3);
+    ) 
+    : isInside[channel] ? (                              // only transform/transpose if inside
+      status == noteOn || status == noteOff ? (
+        passThru = slider12 != 1;
+        slider15 == 1 ? (
+          msg2 = specificNote;
+        ) : slider15 >= 2 ? (
+          slider21 > 0 ? channel = slider21 - 1;
+          msg1 = CCmsg + channel;
+          slider15 == 3 ? msg3 = specificCCval;
+          slider15 == 4 ? (msg3 = msg2; msg2 = specificCCnum);
+          slider15 == 5 ? msg2 = specificCCnum;
+          slider15 == 6 ? (msg2 = specificCCnum; msg3 = specificCCval);
+          status == noteOff ? (
+            slider20 == 0 ? passThru = false;
+            slider20 == 1 ? msg3 = 0;
           );
         );
-      );
+      )
+      : passThru = slider12 == 0;
+      passThru ? midisend(mpos, msg1, msg2, msg3);
       
-      passNote ? (
-        // old way, uses mposA in the midisend
-        //mposA > mpos ? mposA = 0;                      // in case the CC arrives in the following sample block
-        midisend(mpos, msg1A, msg2A, msg3A);             // use mpos not mposA for a specific delay, avoids midi jitter
-      );
-      
-      passLocatorCC ? midisend(mpos, msg1, msg2, msg3);
-      
-    ) : 
-    
-    midisend(mpos, msg1, msg2, msg3);                  // if not note-on or note-off or locator CC, pass it thru 
-
+    ) : (
+      passThru = slider13 = 0;
+      passThru ? midisend(mpos, msg1, msg2, msg3);
+    );
     
   );  // end of if channel in our range, don't pass through midi outside the range
 );    // end of while midirecv
+
